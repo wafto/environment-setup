@@ -111,7 +111,7 @@ Brewfile always uses explicit `php@8.x` names.
 - [x] `go` via brew
 
 ### Mobile
-- [x] Android Studio — cask `android-studio` (bundles its own JDK)
+- [x] Android Studio — installed manually (bundles its own JDK)
 - [x] `ANDROID_HOME` and platform-tools on `PATH` in `.exports`
 - Flutter: installed manually, not managed by this repo. iOS builds also need Xcode.app
   and CocoaPods, both installed manually.
@@ -134,40 +134,25 @@ has no Herd, so it lives in a separate script, not in `bin/install`.
 
 ## 7. Databases and services
 
-- [x] DBngin (cask `dbngin`)
+- [x] DBngin (installed manually)
 - [x] TablePlus as GUI client
-- [x] Docker Desktop for anything else
+- [x] Docker Desktop for anything else (installed manually)
 
 ---
 
 ## 8. GUI applications (Homebrew casks)
 
 - [x] ghostty — primary terminal
-- [x] zed
-- [x] visual-studio-code
-- [x] claude
 - [x] claude-code
-- [x] chatgpt
-- [x] docker-desktop
-- [x] dbngin
 - [x] tableplus
-- [x] postman
-- [x] figma
-- [x] obsidian
-- [x] slack
 - [x] zoom
-- [x] whatsapp
-- [x] google-chrome
 - [x] brave-browser
-- [x] appcleaner
-- [x] the-unarchiver
-- [x] vlc
-- [x] tailscale-app
 - [x] codexbar
-- [x] android-studio
 
-Apps already installed by hand (dragged into `/Applications`) are adopted automatically:
-`brew bundle` passes `--adopt` when installing casks.
+Installed manually (downloaded from the vendor), not managed by the Brewfile; listed in the
+README: Zed, Visual Studio Code, Claude, ChatGPT, Docker Desktop, DBngin, Postman, Figma,
+Obsidian, Slack, WhatsApp, Google Chrome, AppCleaner, The Unarchiver, VLC, Tailscale,
+Android Studio.
 
 ---
 
