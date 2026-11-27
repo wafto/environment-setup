@@ -1,0 +1,69 @@
+# Brewfile — keep in sync with docs/specification.md
+# Undecided items are commented out with `# ?`.
+
+# Taps
+tap "jandedobbeleer/oh-my-posh"
+
+# --- CLI tools (spec §4) ---
+brew "git"
+brew "gh"
+brew "jq"
+brew "wget"
+brew "awscli"
+brew "uv"
+brew "go"
+brew "cmake"
+brew "ninja"
+brew "sevenzip"
+brew "git-filter-repo"
+brew "zsh-autosuggestions"
+brew "jandedobbeleer/oh-my-posh/oh-my-posh"
+brew "mole"
+brew "shellcheck"
+
+# ? brew "openjdk"
+# ? brew "openjdk@17"
+# ? brew "ruby"
+# ? brew "pyenv-virtualenv"
+# ? brew "wxwidgets"
+# ? brew "libusb"
+
+# --- Languages / runtimes (spec §5) — enabled once Herd migration is done ---
+# brew "php"
+# brew "composer"
+# brew "fnm"
+
+# --- Fonts (spec §9) ---
+cask "font-fira-code"
+cask "font-jetbrains-mono-nerd-font"
+
+# --- GUI apps (spec §8) ---
+cask "ghostty"
+cask "zed"
+cask "visual-studio-code"
+cask "claude"
+cask "claude-code"
+cask "docker-desktop"
+cask "tableplus"
+cask "postman"
+cask "figma"
+cask "obsidian"
+cask "slack"
+cask "zoom"
+cask "whatsapp"
+cask "google-chrome"
+cask "brave-browser"
+cask "appcleaner"
+cask "the-unarchiver"
+cask "vlc"
+cask "hiddenbar"
+cask "tailscale-app"
+cask "ollama-app"
+cask "codexbar"
+
+# ? cask "iterm2"
+# ? cask "chatgpt"
+# ? cask "wispr-flow"
+# ? cask "dbngin"
+# ? cask "android-studio"
+# ? cask "flutter"
