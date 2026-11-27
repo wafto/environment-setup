@@ -118,7 +118,29 @@ install_homebrew() {
     success "Homebrew ready"
 }
 
+# Homebrew refuses to load formulae from third-party taps until they are trusted, and
+# `brew bundle` cannot trust them itself. Offer to trust each tap the Brewfile declares.
+trust_taps() {
+    step "Trusting Brewfile taps"
+    local trusted tap
+    trusted="$(brew trust --json v1 2>/dev/null || true)"
+    while IFS= read -r tap <&3; do
+        if grep -qF "\"$tap\"" <<< "$trusted"; then
+            success "$tap already trusted"
+            continue
+        fi
+        if ask "Trust third-party tap $tap? (https://github.com/${tap%%/*}/homebrew-${tap#*/})"; then
+            brew tap "$tap" >/dev/null
+            brew trust --tap "$tap"
+            success "Trusted $tap"
+        else
+            warn "Not trusting $tap; its Brewfile entries will fail"
+        fi
+    done 3< <(sed -n 's/^tap "\([^"]*\)".*/\1/p' "$DOTFILES_DIR/config/Brewfile")
+}
+
 install_brewfile() {
+    trust_taps
     step "Installing packages from Brewfile"
     brew bundle --file="$DOTFILES_DIR/config/Brewfile" || warn "Some Brewfile entries failed; re-run after fixing them"
     success "Brewfile processed"

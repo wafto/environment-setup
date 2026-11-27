@@ -49,6 +49,8 @@ docs/           this specification and other notes
 - [x] Xcode Command Line Tools: `xcode-select --install` if missing
 - [x] Homebrew: official installer, `/opt/homebrew`
 - [x] `brew shellenv` in `~/.zprofile`, only appended if not already present
+- [x] Ask to trust each untrusted third-party tap declared in the Brewfile (`brew tap` + `brew trust --tap`);
+  Homebrew 7 refuses to load formulae from untrusted taps and `brew bundle` cannot trust them
 - [x] `brew bundle` from `config/Brewfile`
 
 ---
