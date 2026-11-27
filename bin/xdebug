@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+#
+# Enable or disable Xdebug for Homebrew PHP (shivammathur/extensions).
+#
+#   xdebug on|off|status [8.5|8.4|8.3|all]    default: the active `php` version
+#
+# Disabling renames conf.d/<prio>-xdebug.ini to .ini.disabled, so PHP no longer loads it.
+# Set XDEBUG_NO_RESTART=1 to skip restarting Valet afterwards.
+
+set -euo pipefail
+
+VERSIONS_ALL="8.5 8.4 8.3"
+CONF_ROOT="$(brew --prefix)/etc/php"
+
+usage() { echo "usage: $(basename "$0") on|off|status [version|all]" >&2; exit 1; }
+
+action="${1:-}"
+target="${2:-}"
+[[ "$action" =~ ^(on|off|status)$ ]] || usage
+
+if [[ -z "$target" ]]; then
+    target="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+fi
+if [[ "$target" == "all" ]]; then
+    versions="$VERSIONS_ALL"
+else
+    versions="$target"
+fi
+
+changed=0
+for v in $versions; do
+    conf_d="$CONF_ROOT/$v/conf.d"
+    enabled="$(find "$conf_d" -maxdepth 1 -name '*-xdebug.ini' 2>/dev/null | head -n1 || true)"
+    disabled="$(find "$conf_d" -maxdepth 1 -name '*-xdebug.ini.disabled' 2>/dev/null | head -n1 || true)"
+
+    if [[ -z "$enabled" && -z "$disabled" ]]; then
+        echo "PHP $v: xdebug not installed"
+        continue
+    fi
+
+    case "$action" in
+        status)
+            if [[ -n "$enabled" ]]; then echo "PHP $v: xdebug on"; else echo "PHP $v: xdebug off"; fi
+            ;;
+        on)
+            if [[ -n "$enabled" ]]; then
+                echo "PHP $v: xdebug already on"
+            else
+                mv "$disabled" "${disabled%.disabled}"
+                echo "PHP $v: xdebug on"
+                changed=1
+            fi
+            ;;
+        off)
+            if [[ -n "$enabled" ]]; then
+                # A reinstall/upgrade writes a fresh .ini; drop any stale .disabled copy first.
+                [[ -n "$disabled" ]] && rm -f "$disabled"
+                mv "$enabled" "$enabled.disabled"
+                echo "PHP $v: xdebug off"
+                changed=1
+            else
+                echo "PHP $v: xdebug already off"
+            fi
+            ;;
+    esac
+done
+
+if [[ "$changed" == 1 && "${XDEBUG_NO_RESTART:-0}" != 1 ]] && command -v valet &>/dev/null; then
+    valet restart >/dev/null && echo "Valet restarted"
+fi
