@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# Keep data-heavy directories out of the Spotlight index (spec §13).
+#
+# Spotlight skips any directory containing a .metadata_never_index file, and everything
+# below it. Safe to re-run; new projects are picked up on the next run.
+#
+#   DEV_DIR   directory to scan for node_modules / vendor / .git (default: ~/Development)
+
+set -euo pipefail
+
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+success() { echo -e "${GREEN}✓${NC} $1"; }
+warn()    { echo -e "${YELLOW}⚠${NC} $1"; }
+pretty()  { local p="$1"; [[ "$p" == "$HOME"* ]] && p="~${p#"$HOME"}"; echo "$p"; }
+
+DEV_DIR="${DEV_DIR:-$HOME/Development}"
+
+# Fixed directories, created if missing so they are covered before the app first writes.
+EXCLUDED_DIRS=(
+    "$HOME/Library/Application Support/com.tinyapp.DBngin"
+)
+
+mark() {
+    mkdir -p "$1" 2>/dev/null && touch "$1/.metadata_never_index" 2>/dev/null
+}
+
+for dir in "${EXCLUDED_DIRS[@]}"; do
+    if mark "$dir"; then
+        success "Excluded $(pretty "$dir")"
+    else
+        warn "Could not exclude $(pretty "$dir")"
+    fi
+done
+
+if [[ -d "$DEV_DIR" ]]; then
+    count=0
+    while IFS= read -r -d '' dir; do
+        if [[ ! -e "$dir/.metadata_never_index" ]]; then
+            touch "$dir/.metadata_never_index" 2>/dev/null && count=$((count + 1))
+        fi
+    done < <(find "$DEV_DIR" -type d \( -name node_modules -o -name vendor -o -name .git \) -prune -print0 2>/dev/null)
+    success "Excluded $count new node_modules/vendor/.git directories under $(pretty "$DEV_DIR")"
+else
+    warn "$(pretty "$DEV_DIR") does not exist, skipping project scan"
+fi
