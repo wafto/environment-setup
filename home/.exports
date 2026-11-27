@@ -1,0 +1,21 @@
+# Environment variables and PATH. Sourced from ~/.zshrc.
+
+export VISUAL="nano"
+export EDITOR="nano"
+export LC_ALL="en_US.UTF-8"
+export TERM="xterm-256color"
+
+# User binaries (uv tools, etc.)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Global Composer binaries (laravel, valet, pint, cpx, ...)
+export PATH="$HOME/.composer/vendor/bin:$HOME/.config/composer/vendor/bin:$PATH"
+
+# Android SDK (installed by Android Studio)
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin"
+
+# Java: the JDK bundled with Android Studio (no separate openjdk)
+if [[ -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" ]]; then
+    export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+fi

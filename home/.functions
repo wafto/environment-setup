@@ -1,0 +1,184 @@
+# Shell functions. Sourced from ~/.zshrc.
+
+# Push the current branch to origin (resolved at call time).
+gp() {
+    git push origin "$(git branch --show-current)" "$@"
+}
+
+# Prune remote-tracking branches and delete local branches whose upstream is gone.
+git-clean() {
+    git remote prune origin
+    git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -D
+}
+
+# Reinstall node_modules from scratch.
+npm-fresh() {
+    rm -rf node_modules package-lock.json yarn.lock
+    npm cache clean --force
+    npm install
+}
+
+# Toggle Xdebug for the active PHP version (pass a version, e.g. `xdebug-on 8.4`, or `all`).
+xdebug-on()  { "$DOTFILES_DIR/bin/xdebug" on "$@"; }
+xdebug-off() { "$DOTFILES_DIR/bin/xdebug" off "$@"; }
+
+# gcai — generate a Conventional Commits message for staged changes with Claude, review, commit.
+#
+#   gcai                   generate a message from the staged diff, then ask
+#   gcai -y                generate and commit without asking
+#   gcai fix the thing     commit with this exact message (no AI)
+#
+# Only already-staged changes are committed; stage with `git add` first.
+# Generated messages follow Conventional Commits 1.0.0 (type(scope)!: description).
+#
+# Env overrides:
+#   COMMIT_MODEL      model alias for claude (default: haiku)
+#   COMMIT_MAX_BYTES  diff bytes sent to the model (default: 60000)
+
+gcai() {
+  emulate -L zsh
+  setopt local_traps extended_glob
+
+  git rev-parse --is-inside-work-tree &>/dev/null || {
+    print -u2 "gcai: not inside a git repository"; return 1
+  }
+
+  local auto=0
+  [[ $1 == -y ]] && { auto=1; shift }
+
+  # Only staged changes are committed; nothing is staged automatically.
+  if git diff --cached --quiet; then
+    print -u2 "gcai: nothing staged (use git add first)"; return 1
+  fi
+
+  # Explicit message: no eval, no quoting bugs.
+  if (( $# )); then
+    git commit -m "$*"
+    return
+  fi
+
+  if (( ! $+commands[claude] )); then
+    print -u2 "gcai: 'claude' CLI not found in PATH; pass a message instead: gcai <message>"
+    return 1
+  fi
+
+  local -a excludes=(
+    ':(exclude)*.lock' ':(exclude)package-lock.json' ':(exclude)pnpm-lock.yaml'
+    ':(exclude)composer.lock' ':(exclude)*.min.js' ':(exclude)*.min.css'
+    ':(exclude)*.map' ':(exclude)*.svg'
+  )
+
+  local context
+  context=$(
+    print "Branch: $(git branch --show-current 2>/dev/null)"
+    print "\n=== Staged files ==="
+    git diff --cached --stat=120 --no-color
+    print "\n=== Staged diff (lockfiles/minified omitted, may be truncated) ==="
+    git -c core.quotepath=off diff --cached --no-color --no-ext-diff -U2 -- . $excludes \
+      | head -c ${COMMIT_MAX_BYTES:-60000}
+  )
+
+  local system_prompt='You write git commit messages following Conventional Commits 1.0.0. Reply with the commit message only: no quotes, no markdown, no code fences, no preamble, no emoji.
+
+Structure:
+<type>[optional scope][optional !]: <description>
+
+[optional body]
+
+[optional footer(s)]
+
+Type (choose the one that best fits the main change):
+- feat: a new feature (MUST be used for new features)
+- fix: a bug fix (MUST be used for bug fixes)
+- build: build system or external dependencies
+- chore: maintenance that does not touch source or tests
+- ci: CI configuration and scripts
+- docs: documentation only
+- style: formatting, whitespace, no change in meaning
+- refactor: code change that neither fixes a bug nor adds a feature
+- perf: performance improvement
+- test: adding or correcting tests
+- revert: reverts a previous commit
+
+Rules:
+- Type in lowercase, followed by an optional scope in parentheses: a noun naming the part of the codebase, e.g. fix(parser):. Omit the scope if no single area fits.
+- Then a colon and one space, then the description: a short summary in imperative mood, lowercase start, no trailing period. The whole first line must be at most 72 characters.
+- Body: optional. Use it only when the reason or impact is not obvious from the first line. It MUST start after exactly one blank line. Explain why, not a file list. Wrap at 72 characters.
+- Footers: optional, after one blank line following the body. Format: Token: value, where tokens use - instead of spaces (e.g. Refs: #123).
+- Breaking changes (removed or incompatible public API, config, CLI flags, data formats): put ! immediately before the colon, e.g. feat(api)!: drop v1 endpoints, and add a footer "BREAKING CHANGE: <what breaks and how to migrate>". Never mark a change breaking unless it really is.
+- Do not invent issue numbers or footers that are not supported by the diff or branch name.'
+
+  local msg choice spinner_pid
+  while true; do
+    # Spinner on stderr, only on a terminal. `always` guarantees cleanup,
+    # including on Ctrl-C.
+    {
+      if [[ -t 2 ]]; then
+        {
+          local frames='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏' i
+          printf '\e[?25l' >&2
+          while true; do
+            for (( i = 1; i <= ${#frames}; i++ )); do
+              printf '\r%s Generating commit message...' "${frames[i]}" >&2
+              sleep 0.08
+            done
+          done
+        } &!
+        spinner_pid=$!
+      fi
+
+      msg=$(print -r -- "$context" | claude -p \
+        --model "${COMMIT_MODEL:-haiku}" \
+        --system-prompt "$system_prompt" \
+        --tools "" \
+        --strict-mcp-config \
+        --no-session-persistence \
+        "Write the commit message for the staged changes provided on stdin.")
+    } always {
+      if [[ -n $spinner_pid ]]; then
+        kill $spinner_pid 2>/dev/null
+        printf '\r\e[K\e[?25h' >&2
+        spinner_pid=
+      fi
+    }
+
+    # Strip code fences, surrounding quotes and blank edges models sometimes add.
+    msg=$(print -r -- "$msg" | sed -e '/^```/d')
+    msg=${${msg##[[:space:]]#}%%[[:space:]]#}
+    msg=${${msg#[\"\'\`]}%[\"\'\`]}
+
+    if [[ -z $msg ]]; then
+      print -u2 "gcai: no message generated (claude failed?)"; return 1
+    fi
+
+    # Conventional Commits 1.0.0: type(scope)!: description, then optional
+    # body/footers that must start after one blank line.
+    local valid=0 subject=${msg%%$'\n'*}
+    local -a lines=("${(@f)msg}")
+    if [[ $subject =~ '^(feat|fix|build|chore|ci|docs|style|refactor|perf|test|revert)(\([^()[:space:]]+\))?!?: [^[:space:]].*$' ]] \
+       && (( ${#subject} <= 72 )) \
+       && { (( ${#lines} == 1 )) || [[ -z ${lines[2]} ]] }; then
+      valid=1
+    fi
+
+    if (( auto )); then
+      (( valid )) && break
+      print -u2 "gcai: generated message doesn't match the required format, not committing:"
+      print -u2 -r -- "$msg"
+      return 1
+    fi
+
+    print -r -- $'\n\e[1m'"$msg"$'\e[0m\n'
+    (( valid )) || print -u2 "warning: message doesn't follow Conventional Commits (type(scope): description, subject <= 72 chars, blank line before body)"
+    read -k1 "choice?[Enter] commit  [e]dit  [r]egenerate  [q]uit "
+    print
+    case $choice in
+      $'\n'|y) break ;;
+      e)       git commit -e -m "$msg"; return ;;
+      r)       continue ;;
+      *)       print "Aborted. Changes are still staged."; return 1 ;;
+    esac
+  done
+
+  git commit -m "$msg"
+}

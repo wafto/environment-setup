@@ -1,0 +1,27 @@
+# Aliases. Sourced from ~/.zshrc. Anything needing arguments or runtime values lives in .functions.
+
+# Navigation
+alias cloud="cd \"$HOME/Library/Mobile Documents/com~apple~CloudDocs/Documents\""
+alias dev="cd \"$HOME/Development\""
+alias dotfiles="cd \"$DOTFILES_DIR\""
+
+# Homebrew
+alias brewhaha="brew update && brew upgrade && brew doctor"
+
+# Laravel
+alias serve="php artisan serve"
+alias art="php artisan"
+alias tinker="php artisan tinker"
+
+# Git
+alias gst="git status"
+alias gcd="git checkout develop"
+alias gcm="git checkout master"
+alias gpall="git checkout develop && git push origin develop && git checkout master && git merge develop && git push origin master && git checkout develop"
+alias nah="git reset --hard; git clean -df;"
+alias glog="git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+alias wip="git add . && git commit -m 'wip'"
+alias gbr="git branch | grep -v 'master' | xargs git branch -D"
+
+# Shell
+alias zshconfig="code \"$DOTFILES_DIR\""
