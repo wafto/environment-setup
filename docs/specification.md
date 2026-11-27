@@ -33,7 +33,8 @@ Status legend:
 ## 2. Repository layout
 
 ```
-bin/            executable entry points (install, update, migrate-from-herd, helpers)
+bin/            executable entry points (install, update, migrate-from-herd) and helpers
+                (xdebug, exclude-from-spotlight)
 config/         Brewfile and app config (ghostty, zed, vscode, oh-my-posh theme, ...)
 home/           dotfiles symlinked into ~ (.zshrc, .aliases, .gitconfig, ...)
 macos/          macOS defaults (set-defaults.sh)
@@ -165,8 +166,8 @@ has no Herd, so it lives in a separate script, not in `bin/install`.
 - [x] codexbar
 - [x] android-studio
 
-Apps already installed by hand (dragged into `/Applications`) make `brew bundle` fail
-with "already an App at …". Adopt them once with `brew install --cask --adopt <name>`.
+Apps already installed by hand (dragged into `/Applications`) are adopted automatically:
+`brew bundle` passes `--adopt` when installing casks.
 
 ---
 
@@ -183,7 +184,8 @@ Shell: macOS zsh + oh-my-posh prompt + zsh-autosuggestions. No Oh My Zsh.
 
 - [x] Symlink helper: if the target exists and is not already the correct symlink, move it
   to `~/.environment-setup-backup/<timestamp>/` before linking
-- [x] `home/.zshrc` → `~/.zshrc`
+- [x] `home/.zshrc` → `~/.zshrc`; it resolves `DOTFILES_DIR` through its own symlink and
+  provides what Oh My Zsh used to: history settings, `compinit`, case-insensitive completion
 - [x] `home/.aliases`, `home/.exports`, `home/.functions` sourced from `.zshrc`
   (contents of the current `~/.alias` and the git aliases actually used move into `.aliases`)
 - [x] oh-my-posh theme: current `~/.ZSHThemes.json` moves to `config/oh-my-posh/theme.omp.json`
@@ -203,7 +205,9 @@ Shell: macOS zsh + oh-my-posh prompt + zsh-autosuggestions. No Oh My Zsh.
 
 ## 12. Editor and terminal configuration
 
-- [x] `config/ghostty/config` → `~/.config/ghostty/config`
+- [x] `config/ghostty/config` → `~/.config/ghostty/config`. Ghostty also loads
+  `~/Library/Application Support/com.mitchellh.ghostty/config` (and it overrides the XDG one),
+  so the installer backs that file up and removes it.
 - [x] `config/zed/settings.json`, `config/zed/keymap.json` → `~/.config/zed/`
 - [x] `config/vscode/settings.json`, `config/vscode/keybindings.json` →
   `~/Library/Application Support/Code/User/`
@@ -219,8 +223,9 @@ logout/restart to take effect; the script says so at the end.
 
 - [x] Screenshots: save to `~/Pictures/Screenshots`, PNG, no shadow
 - [x] Trackpad: tap to click
-- [x] Spotlight: `bin/exclude-from-spotlight` excludes `node_modules`, `vendor` and `.git`
-  under `~/Development`
+- [x] Spotlight: `bin/exclude-from-spotlight` drops a `.metadata_never_index` marker into
+  `node_modules`, `vendor` and `.git` under `~/Development`, and into DBngin's data directory
+  (`~/Library/Application Support/com.tinyapp.DBngin`). The marker is in the global gitignore.
 - [ ] Finder: show hidden files, path bar, status bar, extensions
 - [ ] Dock: autohide, size, no recent apps
 - [ ] Keyboard: fast key repeat, short delay, disable press-and-hold

@@ -19,8 +19,8 @@ scripts do should be listed there, and undecided items are tracked as open quest
 
 ## Layout
 
-- `bin/` — `install` (and later `update`)
-- `config/` — `Brewfile` and app config
-- `home/` — dotfiles symlinked into `~` (planned)
-- `macos/` — macOS defaults and shortcuts (planned)
+- `bin/` — `install`, plus helpers `xdebug` and `exclude-from-spotlight` (`update` and `migrate-from-herd` planned)
+- `config/` — `Brewfile`, oh-my-posh theme, Ghostty, Zed and VS Code config
+- `home/` — dotfiles symlinked into `~` (`.zshrc`, `.aliases`, `.exports`, `.functions`, `.gitconfig`)
+- `macos/` — macOS defaults
 - `docs/` — specification
