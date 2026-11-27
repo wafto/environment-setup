@@ -1,0 +1,7 @@
+# macOS
+.DS_Store
+.metadata_never_index
+
+# Editors
+.idea/
+.vscode/
