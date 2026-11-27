@@ -5,7 +5,10 @@ Each section lists what gets **installed**, what is deliberately **not installed
 a reason), and **open questions** still to decide. Scripts and config should only ever
 implement what is written here.
 
-Status legend: `[x]` implemented, `[ ]` planned, `[?]` undecided.
+Status legend:
+- `[x]` decided: `bin/install` / `bin/update` must do this.
+- `[ ]` not decided yet: do not implement.
+- `[?]` open question that needs an answer before it can be decided.
 
 ---
 
@@ -15,20 +18,25 @@ Status legend: `[x]` implemented, `[ ]` planned, `[?]` undecided.
 - One command (`./bin/install`) sets up a fresh Mac; one command (`./bin/update`) keeps it current.
 - Idempotent: safe to re-run at any time without duplicating config or breaking things.
 - Apple Silicon first (`/opt/homebrew`).
+- The repo can live anywhere; scripts resolve their own location. `~/environment-setup` is the suggested clone path.
 - No secrets in the repo (git identity, tokens, SSH keys stay local/untracked).
+- Never destroy existing config: files replaced by symlinks are backed up first (§10).
 
 **Non-goals**
 - Installing Xcode.app itself (too large; install manually from the App Store if needed).
+- App Store apps (no `mas`); they are installed manually.
+- Flutter SDK (set up manually, see §5).
+- Claude Code configuration (`~/.claude` stays outside this repo).
 
 ---
 
 ## 2. Repository layout
 
 ```
-bin/            executable entry points (install, update, helpers)
-config/         Brewfile and app config (ghostty, zed, oh-my-posh theme, ...)
+bin/            executable entry points (install, update, migrate-from-herd, helpers)
+config/         Brewfile and app config (ghostty, zed, vscode, oh-my-posh theme, ...)
 home/           dotfiles symlinked into ~ (.zshrc, .aliases, .gitconfig, ...)
-macos/          macOS defaults and keyboard shortcuts (set-defaults.sh)
+macos/          macOS defaults (set-defaults.sh)
 docs/           this specification and other notes
 ```
 
@@ -36,19 +44,16 @@ docs/           this specification and other notes
 
 ## 3. Bootstrap
 
-| Item | Status | Notes |
-|---|---|---|
-| macOS check | [x] | Abort if not Darwin |
-| Xcode Command Line Tools | [x] | `xcode-select --install` if missing |
-| Homebrew | [x] | Official installer, `/opt/homebrew` |
-| `brew shellenv` in `~/.zprofile` | [x] | Only appended if not already present |
-| `brew bundle` from `config/Brewfile` | [x] | |
+- [x] macOS check: abort if not Darwin
+- [x] Xcode Command Line Tools: `xcode-select --install` if missing
+- [x] Homebrew: official installer, `/opt/homebrew`
+- [x] `brew shellenv` in `~/.zprofile`, only appended if not already present
+- [x] `brew bundle` from `config/Brewfile`
 
 ---
 
 ## 4. CLI tools (Homebrew formulae)
 
-**Install**
 - [x] git
 - [x] gh — GitHub CLI
 - [x] jq
@@ -64,27 +69,39 @@ docs/           this specification and other notes
 - [x] oh-my-posh (tap `jandedobbeleer/oh-my-posh`)
 - [x] mole
 - [x] shellcheck — lint the scripts in this repo
-- [x] php (see §5)
-- [x] composer (see §5)
+- [x] PHP and extensions (see §5; Composer is not a brew formula here)
 - [x] fnm (see §5)
 
 ---
 
 ## 5. Languages and runtimes
 
-### PHP (Homebrew, replaces Herd — see §6)
-- [x] `php` (latest) via brew
-- [x] Additional versions via `shivammathur/php` tap (e.g. `php@8.3`)
-- [x] pecl extensions: `redis`, `xdebug`
-- [x] pecl: `imagick`, `memcached`, `pcov`
-- [x] `composer` via brew
-- [x] Global Composer packages: `laravel/installer`, `laravel/pint`
-- [x] Global Composer: `laravel/valet`, `laravel/envoy`, `spatie/phpunit-watcher`, `cpx/cpx`
+### PHP
+All PHP versions and extensions come from the `shivammathur/php` and
+`shivammathur/extensions` taps, declared in the Brewfile (no pecl).
+
+- [x] `shivammathur/php/php@8.5` (default; keg-only, so `bin/install` runs `brew link --force --overwrite php@8.5`
+  before installing Composer and Valet)
+- [x] `shivammathur/php/php@8.4`
+- [x] `shivammathur/php/php@8.3`
+- [x] Extensions for each version above (`<ext>@8.5`, `<ext>@8.4`, `<ext>@8.3`):
+  `phpredis`, `xdebug`, `imagick`, `memcached`, `pcov`
+- [x] Default: `pcov` enabled, `xdebug` installed but disabled. `xdebug-on` / `xdebug-off`
+  shell functions toggle it for the active PHP version.
+- [x] Composer via the official installer (checksum verified) into `/opt/homebrew/bin/composer`,
+  not the brew formula: that formula depends on core `php`, which would be linked over `php@8.5`.
+  `bin/update` runs `composer self-update`.
+- [x] Global Composer packages: `laravel/installer`, `laravel/pint`, `laravel/valet`,
+  `laravel/envoy`, `spatie/phpunit-watcher`, `cpx/cpx`
+- [x] `valet install` (after Herd is removed, see §6); switch versions per project with `valet use php@8.x`
+
+Note: the tap's unversioned `php` formula already tracks the newest release (8.6), so the
+Brewfile always uses explicit `php@8.x` names.
 
 ### Node
 - [x] `fnm` via brew, `fnm install --lts`, `fnm default lts-latest`
 - [x] `eval "$(fnm env --use-on-cd)"` in `.zshrc`
-- [x] Global npm packages
+- No global npm packages; use `npx` as needed.
 
 ### Python
 - [x] `uv` (manages Python versions and tools; no pyenv)
@@ -93,26 +110,30 @@ docs/           this specification and other notes
 - [x] `go` via brew
 
 ### Mobile
-- [x] Flutter — currently installed; brew cask `flutter` or manual?
-- [x] Android Studio — cask `android-studio`
+- [x] Android Studio — cask `android-studio` (bundles its own JDK)
+- [x] `ANDROID_HOME` and platform-tools on `PATH` in `.exports`
+- Flutter: installed manually, not managed by this repo. iOS builds also need Xcode.app
+  and CocoaPods, both installed manually.
 
 ---
 
-## 6. Herd migration
+## 6. Herd migration (one-time, `bin/migrate-from-herd`)
 
 Herd currently provides `php`, `composer` and Node (via its own nvm), and its `bin`
-directory comes first in `PATH`. Moving to Homebrew PHP + fnm means:
+directory comes first in `PATH`. This only applies to the current machine; a fresh Mac
+has no Herd, so it lives in a separate script, not in `bin/install`.
 
-- [x] Remove Herd's `bin` and nvm entries from `PATH` (`.zshrc`/`.zprofile`)
-- [x] Remove the global `nvm` shell function loaded by Herd
-- [x] Uninstall Herd entirely
-- [x] Local `*.test` sites: Valet (`composer global require laravel/valet && valet install`)
+- [x] Run **before** `valet install` (Herd and Valet both claim ports 80/443 and `.test` DNS)
+- [x] Quit and uninstall Herd (`/Applications/Herd.app`, `~/Library/Application Support/Herd`)
+- [x] Herd's `PATH`, `HERD_PHP_*_INI_SCAN_DIR` and nvm lines disappear when `~/.zshrc` is
+  replaced by the repo's version (the old file is backed up, §10)
+- [x] Print a list of sites to re-link with `valet link` / `valet park`
 
 ---
 
 ## 7. Databases and services
 
-- [x] DBngin (cask `dbngin`, currently installed)
+- [x] DBngin (cask `dbngin`)
 - [x] TablePlus as GUI client
 - [x] Docker Desktop for anything else
 
@@ -120,13 +141,14 @@ directory comes first in `PATH`. Moving to Homebrew PHP + fnm means:
 
 ## 8. GUI applications (Homebrew casks)
 
-**Install**
 - [x] ghostty — primary terminal
 - [x] zed
 - [x] visual-studio-code
 - [x] claude
 - [x] claude-code
+- [x] chatgpt
 - [x] docker-desktop
+- [x] dbngin
 - [x] tableplus
 - [x] postman
 - [x] figma
@@ -141,7 +163,10 @@ directory comes first in `PATH`. Moving to Homebrew PHP + fnm means:
 - [x] vlc
 - [x] tailscale-app
 - [x] codexbar
-- [x] chatgpt
+- [x] android-studio
+
+Apps already installed by hand (dragged into `/Applications`) make `brew bundle` fail
+with "already an App at …". Adopt them once with `brew install --cask --adopt <name>`.
 
 ---
 
@@ -156,9 +181,12 @@ directory comes first in `PATH`. Moving to Homebrew PHP + fnm means:
 
 Shell: macOS zsh + oh-my-posh prompt + zsh-autosuggestions. No Oh My Zsh.
 
-- [x] `home/.zshrc` → `~/.zshrc` (symlink)
+- [x] Symlink helper: if the target exists and is not already the correct symlink, move it
+  to `~/.environment-setup-backup/<timestamp>/` before linking
+- [x] `home/.zshrc` → `~/.zshrc`
 - [x] `home/.aliases`, `home/.exports`, `home/.functions` sourced from `.zshrc`
-- [x] oh-my-posh theme in `config/oh-my-posh/theme.omp.json`
+  (contents of the current `~/.alias` and the git aliases actually used move into `.aliases`)
+- [x] oh-my-posh theme: current `~/.ZSHThemes.json` moves to `config/oh-my-posh/theme.omp.json`
 - [x] `~/.hushlogin` (suppress "Last login" banner)
 - [ ] Optional untracked `~/.zshrc.local` sourced last for machine-specific config
 
@@ -167,63 +195,80 @@ Shell: macOS zsh + oh-my-posh prompt + zsh-autosuggestions. No Oh My Zsh.
 ## 11. Git configuration
 
 - [x] `home/.gitconfig` → `~/.gitconfig` (aliases, default branch `main`, pull rebase, etc.)
-- [x] Identity (name/email) in untracked `~/.gitconfig.local`, included from `.gitconfig`; the installer prompts for it on first run
+- [x] Identity (name/email) in untracked `~/.gitconfig.local`, included from `.gitconfig`;
+  the installer prompts for it on first run
 - [x] `home/.global-gitignore` → `~/.global-gitignore` (`.DS_Store`, `.idea/`, `.vscode/`)
 
 ---
 
 ## 12. Editor and terminal configuration
 
-- [ ] `config/ghostty/config` → `~/.config/ghostty/config`
-- [ ] `config/zed/settings.json`, `config/zed/keymap.json` → `~/.config/zed/`
-- [?] VS Code settings/extensions (`code --install-extension` list)
+- [x] `config/ghostty/config` → `~/.config/ghostty/config`
+- [x] `config/zed/settings.json`, `config/zed/keymap.json` → `~/.config/zed/`
+- [x] `config/vscode/settings.json`, `config/vscode/keybindings.json` →
+  `~/Library/Application Support/Code/User/`
+- [x] `config/vscode/extensions.txt` installed with `code --install-extension`
+  (generated from `code --list-extensions`)
 
 ---
 
-## 13. macOS defaults and keyboard shortcuts
+## 13. macOS defaults
 
-`macos/set-defaults.sh`, run by the installer (asks first).
+`macos/set-defaults.sh`, run by the installer (asks first). Some settings need a
+logout/restart to take effect; the script says so at the end.
 
+- [x] Screenshots: save to `~/Pictures/Screenshots`, PNG, no shadow
+- [x] Trackpad: tap to click
+- [x] Spotlight: `bin/exclude-from-spotlight` excludes `node_modules`, `vendor` and `.git`
+  under `~/Development`
 - [ ] Finder: show hidden files, path bar, status bar, extensions
 - [ ] Dock: autohide, size, no recent apps
 - [ ] Keyboard: fast key repeat, short delay, disable press-and-hold
-- [x] Screenshots: save to `~/Pictures/Screenshots`, PNG, no shadow
-- [x] Trackpad: tap to click
 - [ ] Custom app shortcuts via `defaults write <domain> NSUserKeyEquivalents`
-- [?] Exact values and which shortcuts to define
-- [?] Spotlight exclusions for `~/Development` (`node_modules`, `vendor`)
 
 ---
 
-## 14. Claude Code setup
-
-Optional step (installer asks).
-
-- [?] Symlink `config/claude/settings.json` and `CLAUDE.md` into `~/.claude/`
-- [?] Skills/agents kept in this repo and symlinked
-
----
-
-## 15. Update flow (`bin/update`)
+## 14. Update flow (`bin/update`)
 
 - [x] `git pull` this repo
 - [x] `brew update && brew upgrade && brew bundle && brew cleanup`
-- [x] `npm update -g`
-- [x] `composer global update`
-- [?] `mas upgrade`
-- [?] `softwareupdate -l` (report only)
+- [x] `brew bundle cleanup` (report only, no `--force`): list installed items missing from the Brewfile
+- [x] `fnm install --lts` and set it as default
+- [x] `composer self-update && composer global update`
+- [x] `valet restart` (picks up upgraded PHP versions)
+- [x] `softwareupdate -l` (report only, never installs)
 
 ---
 
-## 16. Open questions (summary)
+## 15. Not installing
 
-- [ ] Final list of undecided formulae (§4) and casks (§8)
-- [ ] Which PHP versions and pecl extensions (§5)
-- [ ] Herd: uninstall or keep out of `PATH`; Valet or not (§6)
-- [ ] DBngin vs brew services (§7)
-- [ ] Use `mas` for App Store apps (§8)
-- [ ] iTerm2 vs Ghostty only (§8)
-- [ ] Modern CLI tools (zoxide, fzf, eza, bat, ripgrep) (§10)
-- [ ] macOS defaults values and keyboard shortcuts (§13)
-- [ ] Mackup or other settings sync (§1)
-- [ ] Claude Code config in this repo (§14)
+Rejected on purpose; the scripts ignore these.
+
+| Item | Reason |
+|---|---|
+| Oh My Zsh | Only used for git aliases; oh-my-posh draws the prompt |
+| Herd | Replaced by Homebrew PHP + Valet (§6) |
+| nvm | Replaced by fnm |
+| pecl | Replaced by `shivammathur/extensions` formulae |
+| pyenv, pyenv-virtualenv | Replaced by uv |
+| zsh (brew) | macOS zsh is recent enough |
+| openjdk, openjdk@17 | Android Studio bundles its own JDK |
+| ruby (brew) | Not needed (CocoaPods is manual) |
+| wxwidgets, libusb | One-off project dependencies |
+| pkhex-cli, opencode | Not needed |
+| iterm2 | Ghostty is the terminal |
+| hiddenbar, ollama, caffeinated, wispr-flow, amazon-chime | Not needed |
+| flutter, fvm | Flutter is set up manually |
+| mas | App Store apps are installed manually |
+| Global npm packages | Use `npx` |
+| Mackup / settings sync | Out of scope |
+| Steam, calibre, qbittorrent, transmission, tor-browser, sweet-home3d | Personal; install manually if wanted |
+| GarageBand, iMovie, Keynote, Pages, Numbers, TestFlight, Xcode | App Store, installed manually |
+
+---
+
+## 16. Open questions
+
+- [ ] Finder, Dock and keyboard defaults (§13): tick to enable
+- [ ] Custom app shortcuts (§13): which shortcuts
+- [ ] `~/.zshrc.local` (§10)
