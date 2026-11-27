@@ -1,0 +1,45 @@
+{
+    "terminal.external.osxExec": "Ghostty.app",
+    "editor.fontFamily":  "JetBrainsMono NFM Regular",
+    "editor.fontLigatures": "'calt', 'ss01', 'ss02', 'ss03', 'ss04', 'ss05', 'ss06', 'zero', 'onum'",
+    "editor.cursorBlinking": "phase",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.guides.bracketPairs": "active",
+    "editor.minimap.enabled": false,
+    "editor.renderWhitespace": "all",
+    "editor.lineHeight": 1.9,
+    "editor.accessibilitySupport": "on",
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+    "[javascript]": {
+        "editor.tabSize": 2
+    },
+    "[html]": {
+        "editor.tabSize": 2
+    },
+    "[vue]": {
+        "editor.tabSize": 2
+    },
+    "[php]": {
+        "editor.tabSize": 4
+    },
+    "[python]": {
+        "editor.tabSize": 4
+    },
+    "workbench.colorTheme": "Palenight (Mild Contrast)",
+    "workbench.iconTheme": "material-icon-theme",
+    "files.trimTrailingWhitespace": true,
+    "dart.flutterSdkPath": "/Users/wafto/Development/flutter",
+    "python.defaultInterpreterPath": "/opt/homebrew/bin/python3.13",
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false,
+        "php": false
+    },
+    "claudeCode.preferredLocation": "panel",
+    "accessibility.signalOptions.volume": 0,
+    "intelephense.diagnostics.argumentCount": "off",
+    "claudeCode.hideOnboarding": true
+}
