@@ -5,7 +5,7 @@ Scripts and config to set up or update my macOS development machine.
 ## Install
 
 ```bash
-git clone <this-repo> ~/environment-setup
+git clone https://github.com/wafto/environment-setup ~/environment-setup
 cd ~/environment-setup
 ./bin/install
 ```
