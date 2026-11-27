@@ -125,10 +125,14 @@ directory comes first in `PATH`. This only applies to the current machine; a fre
 has no Herd, so it lives in a separate script, not in `bin/install`.
 
 - [x] Run **before** `valet install` (Herd and Valet both claim ports 80/443 and `.test` DNS)
-- [x] Quit and uninstall Herd (`/Applications/Herd.app`, `~/Library/Application Support/Herd`)
+- [x] Record parked paths, linked sites and secured sites from Herd's Valet config into
+  `herd-sites.txt` in the backup directory, and print them at the end
+- [x] Stop and quit Herd, remove its root helper (`/Library/LaunchDaemons/de.beyondco.herd.helper.plist`,
+  `/Library/PrivilegedHelperTools/de.beyondco.herd.helper`)
+- [x] Uninstall without deleting: `/Applications/Herd.app` goes to the Trash and
+  `~/Library/Application Support/Herd` moves to `~/.environment-setup-backup/<timestamp>-herd/`
 - [x] Herd's `PATH`, `HERD_PHP_*_INI_SCAN_DIR` and nvm lines disappear when `~/.zshrc` is
   replaced by the repo's version (the old file is backed up, §10)
-- [x] Print a list of sites to re-link with `valet link` / `valet park`
 
 ---
 

@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# One-time migration from Laravel Herd to Homebrew PHP + Valet (spec §6).
+# Run it after bin/install has skipped Valet because Herd was present, then re-run bin/install.
+#
+# Nothing is deleted: Herd.app goes to the Trash and its data directory is moved into the
+# backup directory, so sites, certificates and service data can still be recovered.
+#
+# Compatible with the stock macOS bash (3.2).
+
+set -euo pipefail
+
+HERD_APP="/Applications/Herd.app"
+HERD_DIR="$HOME/Library/Application Support/Herd"
+HERD_VALET="$HERD_DIR/config/valet"
+HERD_HELPER="/Library/PrivilegedHelperTools/de.beyondco.herd.helper"
+HERD_DAEMON="/Library/LaunchDaemons/de.beyondco.herd.helper.plist"
+BACKUP_DIR="$HOME/.environment-setup-backup/$(date +%Y%m%d-%H%M%S)-herd"
+SITES_FILE="$BACKUP_DIR/herd-sites.txt"
+
+BLUE='\033[0;34m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+step()    { echo ""; echo -e "${BLUE}➜${NC} $1"; }
+success() { echo -e "${GREEN}✓${NC} $1"; }
+warn()    { echo -e "${YELLOW}⚠${NC} $1"; }
+error()   { echo -e "${RED}✗${NC} $1"; exit 1; }
+pretty()  { local p="$1"; [[ "$p" == "$HOME"* ]] && p="~${p#"$HOME"}"; echo "$p"; }
+
+ask() {
+    local reply
+    read -r -p "$1 (y/n) " -n 1 reply
+    echo ""
+    [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+# --- Preflight -------------------------------------------------------------------
+
+preflight() {
+    [[ "$(uname -s)" == "Darwin" ]] || error "This script only supports macOS."
+
+    if [[ ! -d "$HERD_APP" && ! -d "$HERD_DIR" && ! -e "$HERD_DAEMON" ]]; then
+        success "Herd is not installed, nothing to migrate"
+        exit 0
+    fi
+
+    step "Migrate from Herd to Valet"
+    warn "This quits Herd, moves Herd.app to the Trash and moves its data to $(pretty "$BACKUP_DIR")."
+    ask "Continue?" || { step "Cancelled"; exit 0; }
+
+    sudo -v
+    mkdir -p "$BACKUP_DIR"
+}
+
+# --- Record sites before anything moves ------------------------------------------------
+
+record_sites() {
+    step "Recording Herd sites"
+    if [[ ! -d "$HERD_VALET" ]]; then
+        warn "No Herd Valet config found, nothing to record"
+        return 0
+    fi
+
+    {
+        echo "# Herd sites, recorded $(date '+%Y-%m-%d %H:%M')"
+        echo ""
+        echo "## Parked directories (valet park, run inside each)"
+        if [[ -f "$HERD_VALET/config.json" ]] && command -v jq &>/dev/null; then
+            # Skip Herd's own Sites dir; its entries are listed as links below.
+            jq -r '.paths[]' "$HERD_VALET/config.json" | sed 's:/*$::' | sort -u \
+                | grep -vF "$HERD_VALET/Sites" | grep -vxF "$HOME/Herd" || true
+        else
+            echo "(could not read $HERD_VALET/config.json)"
+        fi
+
+        echo ""
+        echo "## Linked sites (cd <path> && valet link <name>)"
+        local link
+        for link in "$HERD_VALET/Sites"/*; do
+            [[ -L "$link" ]] || continue
+            echo "$(basename "$link")  $(readlink "$link")"
+        done
+
+        echo ""
+        echo "## Secured sites (valet secure <name>)"
+        local crt
+        for crt in "$HERD_VALET/Certificates"/*.crt; do
+            [[ -e "$crt" ]] || continue
+            basename "$crt" .crt
+        done
+    } > "$SITES_FILE"
+
+    if [[ -d "$HOME/Herd" ]] && [[ -n "$(ls -A "$HOME/Herd" 2>/dev/null)" ]]; then
+        warn "$(pretty "$HOME/Herd") has projects in it; it is left in place. Move them or park it with Valet."
+    fi
+    success "Sites written to $(pretty "$SITES_FILE")"
+}
+
+# --- Stop and remove Herd ------------------------------------------------------------------
+
+stop_herd() {
+    step "Stopping Herd"
+    if [[ -x "$HERD_DIR/bin/herd" ]]; then
+        "$HERD_DIR/bin/herd" stop &>/dev/null || true
+    fi
+    osascript -e 'quit app "Herd"' &>/dev/null || true
+
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -xq Herd || break
+        sleep 1
+    done
+    if pgrep -xq Herd; then
+        error "Herd is still running; quit it from the menu bar and re-run this script."
+    fi
+    success "Herd stopped"
+}
+
+remove_helper() {
+    step "Removing Herd's privileged helper"
+    if [[ -e "$HERD_DAEMON" ]]; then
+        sudo launchctl bootout system "$HERD_DAEMON" &>/dev/null || true
+        sudo rm -f "$HERD_DAEMON"
+        success "Removed $HERD_DAEMON"
+    fi
+    if [[ -e "$HERD_HELPER" ]]; then
+        sudo rm -f "$HERD_HELPER"
+        success "Removed $HERD_HELPER"
+    fi
+}
+
+remove_herd() {
+    step "Removing Herd"
+    if [[ -d "$HERD_APP" ]]; then
+        local trashed
+        trashed="$HOME/.Trash/Herd-$(date +%Y%m%d-%H%M%S).app"
+        mv "$HERD_APP" "$trashed" 2>/dev/null || sudo mv "$HERD_APP" "$trashed"
+        success "Moved Herd.app to the Trash"
+    fi
+    if [[ -d "$HERD_DIR" ]]; then
+        mv "$HERD_DIR" "$BACKUP_DIR/Herd"
+        success "Moved $(pretty "$HERD_DIR") → $(pretty "$BACKUP_DIR/Herd")"
+    fi
+}
+
+# --- Summary ----------------------------------------------------------------------------------
+
+summary() {
+    echo ""
+    success "Herd removed"
+    echo ""
+    step "Next steps"
+    echo "  • Re-run bin/install to run 'valet install'"
+    echo "  • Open a new terminal so Herd's PATH entries are gone (~/.zshrc comes from this repo)"
+    echo "  • Re-create the sites listed in $(pretty "$SITES_FILE"):"
+    echo ""
+    sed 's/^/      /' "$SITES_FILE"
+    echo ""
+    echo "  • Herd's root CA may still be trusted in the System keychain (Keychain Access); delete it if unwanted"
+    echo ""
+}
+
+main() {
+    preflight
+    record_sites
+    stop_herd
+    remove_helper
+    remove_herd
+    summary
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -12,6 +12,11 @@ cd ~/environment-setup
 
 The repo can live anywhere; the scripts resolve their own location.
 
+Coming from Laravel Herd? `bin/install` skips Valet while Herd is installed. Run
+`./bin/migrate-from-herd`, then `./bin/install` again. The migration script writes the
+parked, linked and secured sites to a file in the backup directory so they can be
+re-created with Valet.
+
 ## What gets installed
 
 See [docs/specification.md](docs/specification.md). It is the source of truth: everything the
@@ -45,7 +50,7 @@ config gets linked and the VS Code extensions get installed. For VS Code, run
 
 ## Layout
 
-- `bin/` — `install`, plus helpers `xdebug` and `exclude-from-spotlight` (`update` and `migrate-from-herd` planned)
+- `bin/` — `install`, `migrate-from-herd` (one-time), plus helpers `xdebug` and `exclude-from-spotlight` (`update` planned)
 - `config/` — `Brewfile`, oh-my-posh theme, Ghostty, Zed and VS Code config
 - `home/` — dotfiles symlinked into `~` (`.zshrc`, `.aliases`, `.exports`, `.functions`, `.gitconfig`)
 - `macos/` — macOS defaults
